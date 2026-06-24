@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KureRobo Tester</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>KureRobo Tester</h1>
+      <div class="actions">
+        <a class="help-link" href="guide/README.md" target="_blank" rel="noopener">📖 使い方</a>
+        <button id="stop-btn" class="danger">■ 全停止</button>
+        <span class="sep"></span>
+        <span id="status-dot" class="dot off"></span>
+        <span id="status-text">未接続</span>
+        <button id="connect-btn">接続</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab" data-tab="flash">① 書き込み</button>
+      <button class="tab active" data-tab="manual">② 手動テスト</button>
+      <button class="tab" data-tab="operate">③ 操縦</button>
+    </nav>
+
+    <main>
+      <!-- ① 書き込み -->
+      <section id="tab-flash" class="tab-panel">
+        <div class="group">
+          <h2>ESP32 ブリッジファーム書き込み</h2>
+          <p class="hint">
+            インストール不要のポータブル書き込みツール(esptool同梱)。ダウンロードして解凍し、<code>flash.bat</code> をダブルクリックするだけです。
+          </p>
+          <p><a class="dlbtn" href="flash-tool.zip" download>⬇ 書き込みツール(ZIP・約14MB)をダウンロード</a></p>
+          <ol class="steps">
+            <li>ZIPをダウンロードして<b>解凍</b>(右クリック→すべて展開)</li>
+            <li>USBで ESP32 を接続する</li>
+            <li>解凍フォルダ内の <code>flash.bat</code> をダブルクリック</li>
+            <li>黒い画面に <code>OK! Flash complete (hash verified)</code> が出れば完了(COMは自動検出)</li>
+          </ol>
+          <p class="hint">
+            ※ Windowsが「PCを保護しました」と出たら「詳細情報 → 実行」(同梱 esptool.exe が署名なしのため)。<br />
+            ※ ブリッジは固定ファームなので、各ESP32は一度書けば以後の書き込みは不要です。<br />
+            ※ ブラウザからの直接書き込み(esptool-js)は、このボード(CP2102)でフラッシュを破損させたため不採用です。
+          </p>
+        </div>
+      </section>
+
+      <!-- ② 手動テスト -->
+      <section id="tab-manual" class="tab-panel active">
+        <p class="hint">接続中は 50ms 周期で送信し続けます(メインボードの800ms安全リセット対策)。行を有効化してスライダーを動かしてください。</p>
+
+        <div class="group" id="grp-robomas">
+          <h2>ロボマスモーター 速度制御 <small>(M2006 / M3508)</small></h2>
+          <div class="rows"></div>
+        </div>
+
+        <div class="group" id="grp-gm6020">
+          <h2>GM6020 速度制御 <small>(ID1〜7)</small></h2>
+          <div class="rows"></div>
+        </div>
+
+        <div class="group" id="grp-brushed">
+          <h2>新モタドラ <small>(CAN直結ブラシ付き / duty -999〜999, 0=ブレーキ)</small></h2>
+          <div class="rows"></div>
+        </div>
+
+        <div class="group" id="grp-pwm">
+          <h2>PWM出力 <small>(ハット 1〜6ch / 0〜20000us)</small></h2>
+          <label class="opt">
+            <input type="checkbox" id="pwm-invert" checked />
+            絶縁反転(フォトカプラ絶縁基板用: <code>20000 − 値</code> を送信)
+          </label>
+          <div class="rows"></div>
+        </div>
+
+        <div class="group" id="grp-gpio">
+          <h2>GPIO出力 <small>(下位ビットから GPIO4,5,… / 現在値 <span id="gpio-val">0x0000</span>)</small></h2>
+          <div class="rows gpio-rows"></div>
+        </div>
+
+        <div class="group">
+          <h2>送信モニタ</h2>
+          <div class="monitor">
+            <div>送信レート: <span id="rate">0</span> 回/秒 / コマンド数: <span id="cmdcount">0</span></div>
+            <div>最終フレーム(COBS後): <code id="lastframe">—</code></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ③ 操縦 -->
+      <section id="tab-operate" class="tab-panel">
+        <div class="group">
+          <h2>コントローラ</h2>
+          <div class="toolbar">
+            <button id="pad-btn">コントローラ接続</button>
+            <span id="pad-status" class="hint">未接続(○×などボタンを押してから「接続」)</span>
+          </div>
+          <div class="monitor"><code id="pad-live">コントローラ未接続</code></div>
+        </div>
+
+        <div class="group">
+          <h2>制御プログラム <small>control(pad, motor) — ここだけ編集できます</small></h2>
+
+          <details class="cheatsheet" open>
+            <summary>関数のお品書き(クリックで開閉)</summary>
+            <div class="sheet-grid">
+              <div class="sheet-col">
+                <h3>入力 <code>pad</code></h3>
+                <table>
+                  <tr><td><code>pad.LX / LY / RX / RY</code></td><td>左右スティック (-3000〜3000, デッドゾーン適用済)</td></tr>
+                  <tr><td><code>pad.pressed("△")</code></td><td>ボタン判定(true/false)</td></tr>
+                  <tr><td><code>pad.buttons</code></td><td>押下ビット列(整数)</td></tr>
+                </table>
+                <p class="note">ボタン名: <code>× ○ □ △ L1 R1 L2 R2 share options L3 R3 ↑ ↓ ← →</code></p>
+              </div>
+              <div class="sheet-col">
+                <h3>出力 <code>motor</code></h3>
+                <table>
+                  <tr><td><code>motor.speed(id, rpm)</code></td><td>ロボマス速度 (M2006/M3508, id 1〜8)</td></tr>
+                  <tr><td><code>motor.phase(id, 目標, 速度?)</code></td><td>M2006/M3508 速度指定付き位相。目標=回転数 / <code>-1</code>で停止</td></tr>
+                  <tr><td><code>motor.gm6020(id, val)</code></td><td>GM6020 速度 (id 1〜7)</td></tr>
+                  <tr><td><code>motor.gm6020Phase(id, deg, 速度?)</code></td><td>GM6020 速度指定付き位相。deg=角度(360で1回転) / <code>-1</code>で停止</td></tr>
+                  <tr><td><code>motor.brushed(id, duty)</code></td><td>新モタドラ (id 1〜8, -999〜999, 0=ブレーキ)</td></tr>
+                  <tr><td><code>motor.pwm(ch, pulse)</code></td><td>PWM (ch 1〜6, 絶縁反転は自動)</td></tr>
+                  <tr><td><code>motor.gpio(state)</code></td><td>GPIO 出力ビット列</td></tr>
+                </table>
+                <p class="note">速度を省くと既定(8000)で動作。位相は原点(リセット時点)基準。</p>
+              </div>
+            </div>
+          </details>
+
+          <div class="toolbar">
+            <label>プロファイル:
+              <select id="profile-select"></select>
+            </label>
+            <button id="profile-save">保存</button>
+            <button id="profile-export">書出(.js)</button>
+            <label class="filebtn">読込
+              <input type="file" id="profile-import" accept=".js,.txt" hidden />
+            </label>
+            <span class="spacer"></span>
+            <button id="control-apply" class="primary">適用(コンパイル)</button>
+          </div>
+          <textarea id="control-src" spellcheck="false"></textarea>
+          <div id="control-status" class="status"></div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

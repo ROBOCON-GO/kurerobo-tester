@@ -1,0 +1,11 @@
+{
+  "name": "kurerobo-tester",
+  "version": "0.1.0",
+  "description": "呉ロボ ブラウザ完結型 ロボットテストツール(書き込み/手動テスト/操縦)",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node tests/test.js",
+    "serve": "npx --yes http-server docs -p 8080 -c-1"
+  }
+}

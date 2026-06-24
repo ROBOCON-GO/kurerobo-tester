@@ -1,0 +1,13 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+
+# arduino-cli build cache (生成物。必要なら firmware/build と flash-tool は追跡してOK)
+firmware/build/*.elf
+firmware/build/*.map
