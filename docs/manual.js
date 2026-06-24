@@ -19,7 +19,6 @@ const SECTIONS = [
 const rows = [];
 const gpioToggles = []; // {bit, cb}
 let gpioBits = 0;
-let savedGpio = 0;
 let estopped = false;
 let capturing = null; // {rec, dir, btn}
 let binds = loadBinds(); // { "speed-1": { up:"w", down:"s" }, ... }
@@ -73,13 +72,21 @@ function buildRow(sec, id) {
   const rec = {
     kind: sec.kind, id, key, en, range, val,
     keyStep: sec.keyStep, min: sec.min, max: sec.max,
-    saved: 0,
   };
+
+  // キー増減幅(1押下あたりの変化量)
+  const stepInput = document.createElement("input");
+  stepInput.type = "number";
+  stepInput.className = "stepinput";
+  stepInput.value = sec.keyStep;
+  stepInput.min = 1;
+  stepInput.title = "キー1押下あたりの増減幅";
+  rec.stepInput = stepInput;
 
   // キーバインド用ボタン(▲増 / ▼減)
   rec.upBtn = makeKeyBtn(rec, "up");
   rec.downBtn = makeKeyBtn(rec, "down");
-  tail.append(rec.upBtn, rec.downBtn);
+  tail.append(stepInput, rec.upBtn, rec.downBtn);
 
   row.append(en, label, range, val, tail);
 
@@ -179,24 +186,26 @@ function onKeyDown(e) {
     if (!b) continue;
     if (b.up === k) {
       e.preventDefault();
-      bump(rec, +rec.keyStep);
+      bump(rec, +1);
       return;
     }
     if (b.down === k) {
       e.preventDefault();
-      bump(rec, -rec.keyStep);
+      bump(rec, -1);
       return;
     }
   }
 }
 
-function bump(rec, delta) {
+function bump(rec, sign) {
+  if (estopped) return;
   if (!rec.en.checked) {
     rec.en.checked = true;
     setRowEnabled(rec, true);
   }
+  const step = Math.abs(parseInt(rec.stepInput.value, 10) || rec.keyStep);
   const cur = parseInt(rec.range.value, 10) || 0;
-  const v = Math.max(rec.min, Math.min(rec.max, cur + delta));
+  const v = Math.max(rec.min, Math.min(rec.max, cur + sign * step));
   rec.range.value = v;
   rec.val.textContent = v;
 }
@@ -227,34 +236,17 @@ function saveBinds() {
   localStorage.setItem(LS_BINDS, JSON.stringify(binds));
 }
 
-// ── 全停止(記憶付き) ──
-// on: スライダー/GPIOを0表示にし、元値を記憶。off: 復元。
+// ── 全停止 ──
+// バーやGPIOの表示・値はそのまま(=それまでの出力を表示し続ける)。
+// 実際の送信は buildManualFrame(true) が 0 を送るので駆動は止まる。解除でそのまま再開。
+// 停止中は誤操作防止のため操作をロックする。
 export function setEstop(on) {
   estopped = on;
-  if (on) {
-    for (const rec of rows) {
-      rec.saved = parseInt(rec.range.value, 10) || 0;
-      rec.range.value = 0;
-      rec.val.textContent = "0";
-      rec.range.disabled = true;
-    }
-    savedGpio = gpioBits;
-    gpioBits = 0;
-    for (const g of gpioToggles) g.cb.disabled = true;
-    updateGpioVal();
-  } else {
-    for (const rec of rows) {
-      rec.range.value = rec.saved;
-      rec.val.textContent = rec.saved;
-      rec.range.disabled = !rec.en.checked;
-    }
-    gpioBits = savedGpio;
-    for (const g of gpioToggles) {
-      g.cb.disabled = false;
-      g.cb.checked = !!(gpioBits & (1 << g.bit));
-    }
-    updateGpioVal();
+  for (const rec of rows) {
+    rec.range.disabled = on || !rec.en.checked;
+    rec.stepInput.disabled = on;
   }
+  for (const g of gpioToggles) g.cb.disabled = on;
 }
 
 // ── 送信フレーム生成 ──

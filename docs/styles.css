@@ -220,6 +220,15 @@ main {
   color: #fff;
   border-color: var(--accent);
 }
+.stepinput {
+  width: 56px;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 5px;
+  font-size: 11px;
+}
 
 .monitor {
   font-size: 13px;
