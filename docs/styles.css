@@ -203,6 +203,23 @@ main {
   padding: 3px 8px;
   font-size: 11px;
 }
+.row .tail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.keybtn {
+  padding: 3px 8px;
+  font-size: 11px;
+  min-width: 46px;
+  color: var(--muted);
+  font-family: "Consolas", monospace;
+}
+.keybtn.capturing {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
 
 .monitor {
   font-size: 13px;

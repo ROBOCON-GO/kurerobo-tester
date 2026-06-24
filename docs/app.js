@@ -2,7 +2,7 @@
 
 import { SerialTransport } from "./transport.js";
 import { toHex } from "./cobs.js";
-import { initManual, buildManualFrame, zeroManual } from "./manual.js";
+import { initManual, buildManualFrame, setEstop } from "./manual.js";
 import { initOperate, buildOperateFrame } from "./operate.js";
 
 const transport = new SerialTransport();
@@ -47,14 +47,9 @@ transport.onData = () => {};
 const stopBtn = document.getElementById("stop-btn");
 stopBtn.addEventListener("click", () => {
   estop = !estop;
-  if (estop) {
-    zeroManual(); // 手動はスライダーを0へ
-    stopBtn.textContent = "▶ 停止中(クリックで再開)";
-    stopBtn.classList.add("active");
-  } else {
-    stopBtn.textContent = "■ 全停止";
-    stopBtn.classList.remove("active");
-  }
+  setEstop(estop); // 手動: 表示を0にし、元値は記憶(解除で復元)
+  stopBtn.textContent = estop ? "▶ 停止中(クリックで解除)" : "■ 全停止";
+  stopBtn.classList.toggle("active", estop);
 });
 
 // ── ハートビート送信(自己スケジュール方式:1回送り終えてから次を予約=絶対に重ならない) ──
@@ -81,7 +76,7 @@ function stopHeartbeat() {
 async function loop() {
   while (running) {
     const t0 = performance.now();
-    if (transport.connected && !estop) {
+    if (transport.connected) {
       try {
         await sendOnce();
       } catch (e) {
@@ -111,9 +106,15 @@ function writeWithTimeout(bytes, ms) {
 async function sendOnce() {
   const tab = activeTab();
   let frame = null;
-  if (tab === "manual") frame = buildManualFrame();
-  else if (tab === "operate") frame = buildOperateFrame();
-  // flash タブでは送信しない
+  if (estop) {
+    // 全停止中: 手動は0を送り続けて確実に停止。操縦/書き込みは送らない(800ms安全リセット)
+    if (tab === "manual") frame = buildManualFrame(true);
+    else return;
+  } else if (tab === "manual") {
+    frame = buildManualFrame();
+  } else if (tab === "operate") {
+    frame = buildOperateFrame();
+  }
 
   if (tab === "manual") {
     document.getElementById("cmdcount").textContent = frame ? frame.count : 0;
