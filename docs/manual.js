@@ -6,6 +6,7 @@ import { Frame } from "./robomas.js";
 import { config } from "./config.js";
 
 const LS_BINDS = "kurerobo_manual_keybinds";
+const LS_STEPS = "kurerobo_manual_keysteps";
 
 // kind: speed=ロボマス速度 / gm6020=GM6020速度 / brushed=新モタドラ / pwm=PWM
 // keyStep: キー1押下あたりの増減量
@@ -22,6 +23,7 @@ let gpioBits = 0;
 let estopped = false;
 let capturing = null; // {rec, dir, btn}
 let binds = loadBinds(); // { "speed-1": { up:"w", down:"s" }, ... }
+let steps = loadSteps(); // { "speed-1": 500, ... } キー増減幅(自動保存)
 
 export function initManual() {
   for (const sec of SECTIONS) {
@@ -78,9 +80,15 @@ function buildRow(sec, id) {
   const stepInput = document.createElement("input");
   stepInput.type = "number";
   stepInput.className = "stepinput";
-  stepInput.value = sec.keyStep;
+  stepInput.value = steps[key] != null ? steps[key] : sec.keyStep;
   stepInput.min = 1;
   stepInput.title = "キー1押下あたりの増減幅";
+  stepInput.addEventListener("change", () => {
+    const n = parseInt(stepInput.value, 10);
+    steps[key] = n > 0 ? n : sec.keyStep;
+    if (!(n > 0)) stepInput.value = sec.keyStep;
+    saveSteps();
+  });
   rec.stepInput = stepInput;
 
   // キーバインド用ボタン(▲増 / ▼減)
@@ -234,6 +242,16 @@ function loadBinds() {
 }
 function saveBinds() {
   localStorage.setItem(LS_BINDS, JSON.stringify(binds));
+}
+function loadSteps() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_STEPS) || "{}");
+  } catch {
+    return {};
+  }
+}
+function saveSteps() {
+  localStorage.setItem(LS_STEPS, JSON.stringify(steps));
 }
 
 // ── 全停止 ──
