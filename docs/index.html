@@ -127,7 +127,7 @@
                   <tr><td><code>motor.pwm(ch, pulse)</code></td><td>PWM (ch 1〜6, 絶縁反転は自動)</td></tr>
                   <tr><td><code>motor.gpio(state)</code></td><td>GPIO 出力ビット列</td></tr>
                 </table>
-                <p class="note">速度を省くと既定(8000)で動作。位相は原点(リセット時点)基準。</p>
+                <p class="note">速度を省くと既定(8000)で動作。位相は原点(リセット時点)基準。<br>control()の外に書いた変数は「適用」時に1回だけ初期化され、以後フレーム間で保持されます(状態保持OK)。</p>
               </div>
             </div>
           </details>

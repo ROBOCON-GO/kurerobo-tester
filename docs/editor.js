@@ -18,7 +18,21 @@ export const DEFAULT_SRC = `// ▼▼▼ ここだけ編集できます（毎フ
 //   motor.brushed(id, duty)           新モタドラ -999〜999 (0=ブレーキ)
 //   motor.pwm(ch, pulse)              PWM (絶縁反転は自動)
 //   motor.gpio(state)                 GPIO ビット列
+//
+// ★ control() の外(下の変数)は「適用」時に1回だけ初期化され、フレーム間で保持されます。
+//    control() は毎フレーム呼ばれます。
+
+// ↓↓ ここは初期化(1回だけ)。状態を保持したい変数はここに置く ↓↓
+let armToggle = false; // ○を押すたびに反転する例
+let prevCircle = false;
+
 function control(pad, motor) {
+  // 例: ○ボタンの「押した瞬間」を検出してトグル(エッジ検出=前回値を保持している)
+  const circle = pad.pressed("○");
+  if (circle && !prevCircle) armToggle = !armToggle;
+  prevCircle = circle;
+  motor.brushed(2, armToggle ? 500 : 0); // トグルONの間だけ回す
+
   // 例: 4輪オムニ(右スティック全方向 + 左スティックX旋回)
   const o1 = pad.RX - pad.RY + pad.LX;
   const o2 = pad.RX + pad.RY + pad.LX;
@@ -51,27 +65,22 @@ export function saveSrc(src) {
 }
 
 /**
- * ソースをコンパイルして runner(pad, motor) を返す。
- * 構文エラー時は例外を投げる。
+ * ソースをコンパイルして control(pad, motor) を返す。
+ *
+ * 重要: src 全体は「適用」時に **一度だけ** 実行される(= 初期化/setup)。
+ * control() の外に書いた変数はその1回で初期化され、以後 control のクロージャとして
+ * **フレーム間で保持**される(エッジ検出・トグル・積分などが書ける)。
+ * 返した control() だけが毎フレーム呼ばれる。
+ * 構文エラーや初期化時の例外はここで投げる。
  */
 export function compile(src) {
-  // src 内で function control(pad, motor){...} を定義 → それを呼ぶ
   const factory = new Function(
-    "pad",
-    "motor",
-    `"use strict";\n${src}\n;return control(pad, motor);`
+    `"use strict";\n${src}\n;` +
+      `if (typeof control !== "function") throw new Error("control(pad, motor) 関数が定義されていません");\n` +
+      `return control;`
   );
-  // 軽く検証(ダミー入力で1回実行)
-  const dummyPad = {
-    LX: 0, LY: 0, RX: 0, RY: 0, buttons: 0, axes: [], raw: null,
-    pressed: () => false,
-  };
-  const noop = {
-    speed() {}, phase() {}, drive() {}, gm6020() {}, gm6020Phase() {},
-    pwm() {}, brushed() {}, gpio() {},
-  };
-  factory(dummyPad, noop); // 例外が出ればここで投げる
-  return factory;
+  const fn = factory(); // ここで src の top-level(初期化)を1回だけ実行
+  return fn;
 }
 
 // ── プロファイル(名前付きソース)管理 ──
